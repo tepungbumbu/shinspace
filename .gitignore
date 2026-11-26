@@ -46,3 +46,9 @@ next-env.d.ts
 .eslintcache
 .turbo
 .swc
+
+# local database (accounts and pages)
+/data/
+
+# copied from node_modules by the predev/prebuild scripts
+/public/tailwind-browser.js
