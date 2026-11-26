@@ -3,7 +3,8 @@ import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 import { cookies } from 'next/headers'
 import { db } from './db'
 
-export type SessionUser = { id: number; name: string; email: string }
+export type Role = 'admin' | 'user'
+export type SessionUser = { id: number; name: string; email: string; role: Role }
 
 const COOKIE = 'detik_session'
 const DAY = 86400
@@ -46,9 +47,24 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const token = (await cookies()).get(COOKIE)?.value
   if (!token) return null
   const row = db()
-    .prepare('SELECT u.id, u.name, u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ?')
+    .prepare("SELECT u.id, u.name, u.email, u.role FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ? AND u.status = 'active'")
     .get(sha(token), Date.now())
   return (row as SessionUser | undefined) ?? null
+}
+
+// Admin-only routes and pages call this: null means "not an admin" (signed out, suspended, or a normal user).
+export async function getAdmin(): Promise<SessionUser | null> {
+  const u = await getSessionUser()
+  return u?.role === 'admin' ? u : null
+}
+
+// Every other device this account is signed in on (this browser's own session is kept).
+const ownToken = async () => { const t = (await cookies()).get(COOKIE)?.value; return t ? sha(t) : '' }
+export async function otherSessions(userId: number) {
+  return (db().prepare('SELECT COUNT(*) AS n FROM sessions WHERE user_id = ? AND expires_at > ? AND token_hash != ?').get(userId, Date.now(), await ownToken()) as { n: number }).n
+}
+export async function revokeOtherSessions(userId: number) {
+  return db().prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?').run(userId, await ownToken()).changes
 }
 
 export async function destroySession() {
@@ -98,5 +114,14 @@ export function tooMany(key: string, max: number, windowMs: number) {
   return h.n > max
 }
 export const clientIp = (req: Request) => req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'local'
+
+// The start of every account route: a same-origin JSON body and a signed-in user.
+export async function accountRequest(req: Request) {
+  const body = await readJson(req)
+  if (!body) return json({ error: 'Bad request.' }, 400)
+  const user = await getSessionUser()
+  if (!user) return json({ error: 'You are signed out. Log in again.' }, 401)
+  return { body, user }
+}
 
 export const json = (body: unknown, status = 200) => Response.json(body, { status })

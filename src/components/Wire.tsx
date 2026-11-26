@@ -1,5 +1,5 @@
-import type { CSSProperties, ReactNode } from 'react'
-import { STYLE } from '@/lib/styles'
+import { useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
+import { isHex, swatchHex } from '@/lib/styles'
 import type { Node } from '@/lib/tree'
 
 // A tiny wireframe of a block tree, drawn from the nodes themselves, so every section gets a thumbnail for free.
@@ -40,8 +40,8 @@ function W({ n, c }: { n: Node; c: Ctx }): ReactNode {
     case 'col': {
       if (/(^|\s)absolute(\s|$)/.test(n.p.cls ?? '')) return null // overlays sit on a picture; the thumbnail only shows the layout
       const img = fill(n.p.bgimg)
-      const bg = img ?? STYLE.bg.sw?.[n.s.bg]
-      const dark = !!img || ['dark', 'indigo'].includes(n.s.bg) || n.s.color === 'white'
+      const bg = img ?? swatchHex('bg', n.s.bg)
+      const dark = !!img || ['dark', 'indigo'].includes(n.s.bg) || (isHex(n.s.bg) && isDarkHex(n.s.bg)) || n.s.color === 'white'
       const wrap = n.type === 'fullwidth' || n.type === 'box' || n.type === 'card' || !!bg
       const flex = n.t?.['base|display'] === 'flex'
       const cls = n.p.cls ?? ''
@@ -124,6 +124,8 @@ function W({ n, c }: { n: Node; c: Ctx }): ReactNode {
     case 'map':
     case 'table':
       return <div className="rounded-sm" style={{ aspectRatio: '16/9', background: soft }} />
+    case 'html':
+      return <HtmlWire code={n.p.code ?? ''} dark={c.dark} />
     case 'separator':
       return <div className="h-px w-full" style={{ background: soft }} />
     default:
@@ -131,10 +133,93 @@ function W({ n, c }: { n: Node; c: Ctx }): ReactNode {
   }
 }
 
+// ---- raw HTML blocks: sketch the markup (headings, text, pictures, buttons, columns, background colours) ----
+const HUES: Record<string, string> = { slate: '#64748b', gray: '#6b7280', zinc: '#71717a', neutral: '#737373', stone: '#78716c', red: '#ef4444', orange: '#f97316', amber: '#f59e0b', yellow: '#eab308', lime: '#84cc16', green: '#22c55e', emerald: '#10b981', teal: '#14b8a6', cyan: '#06b6d4', sky: '#0ea5e9', blue: '#3b82f6', indigo: '#6366f1', violet: '#8b5cf6', purple: '#a855f7', fuchsia: '#d946ef', pink: '#ec4899', rose: '#f43f5e' }
+const mix = (hex: string, to: string, t: number) => {
+  const a = hex.match(/\w\w/g)!.map((x) => parseInt(x, 16)), b = to.match(/\w\w/g)!.map((x) => parseInt(x, 16))
+  return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('')
+}
+function bgOf(cls: string): string | undefined {
+  const hex = cls.match(/(?:^|\s)bg-\[(#[0-9a-f]{6})\]/i)?.[1]
+  if (hex) return hex
+  if (/(?:^|\s)bg-white(?:\s|$)/.test(cls)) return '#ffffff'
+  if (/(?:^|\s)bg-black(?:\s|$)/.test(cls)) return '#0b0b0b'
+  const m = cls.match(/(?:^|\s)bg-([a-z]+)-(\d{2,3})(?:\s|$)/)
+  if (!m || !HUES[m[1]]) return undefined
+  const shade = Number(m[2])
+  return shade <= 200 ? mix(HUES[m[1]], '#ffffff', 0.8) : shade >= 700 ? mix(HUES[m[1]], '#000000', 0.45) : HUES[m[1]]
+}
+const isDarkHex = (h: string) => { const [r, g, b] = h.match(/\w\w/g)!.map((x) => parseInt(x, 16)); return r * 0.3 + g * 0.59 + b * 0.11 < 140 }
+
+function drawEl(el: Element, dark: boolean, depth: number, key: number): ReactNode {
+  const tag = el.tagName.toLowerCase()
+  const cls = el.getAttribute('class') ?? ''
+  const ink = dark ? 'rgba(255,255,255,.85)' : '#334155'
+  const soft = dark ? 'rgba(255,255,255,.35)' : '#cbd5e1'
+  const text = (el.textContent ?? '').trim()
+  if (/^h[1-6]$/.test(tag)) return <span key={key} className="block rounded-full" style={{ width: tag <= 'h2' ? '62%' : '42%', height: tag <= 'h2' ? 6 : 4, background: ink }} />
+  if (tag === 'p' || tag === 'li' || (tag === 'span' && !el.children.length)) {
+    if (!text) return null
+    return text.length < 28 ? <span key={key} className="block rounded-full" style={{ width: '34%', height: 3, background: soft }} /> : <div key={key} className="flex flex-col gap-[2px]"><span className="block rounded-full" style={{ width: '100%', height: 3, background: soft }} /><span className="block rounded-full" style={{ width: '66%', height: 3, background: soft }} /></div>
+  }
+  if (['img', 'picture', 'svg', 'video', 'iframe', 'canvas'].includes(tag)) return <div key={key} className="rounded-[3px]" style={{ aspectRatio: '16/9', background: soft }} />
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return <span key={key} className="block rounded-[2px] border" style={{ height: 7, borderColor: soft }} />
+  if (tag === 'button' || (tag === 'a' && /\b(px-|py-|bg-|rounded|border)/.test(cls))) {
+    const fill = bgOf(cls)
+    return <span key={key} className="inline-block rounded-full" style={{ width: 26, height: 8, background: fill ?? ink, border: fill ? undefined : `1px solid ${ink}`, marginRight: 4 }} />
+  }
+  if (tag === 'a' || tag === 'strong' || tag === 'em' || tag === 'small' || tag === 'label') return text ? <span key={key} className="block rounded-full" style={{ width: '30%', height: 3, background: soft }} /> : null
+  if (tag === 'ul' || tag === 'ol') return <div key={key} className="flex flex-col gap-[2px]">{[70, 55, 62].map((p) => <span key={p} className="block rounded-full" style={{ width: `${p}%`, height: 3, background: soft }} />)}</div>
+  if (depth > 6 || ['script', 'style', 'br', 'hr'].includes(tag)) return null
+
+  const bg = bgOf(cls)
+  const nowDark = bg ? isDarkHex(bg) : dark
+  const cols = Math.max(0, ...[...cls.matchAll(/grid-cols-(\d+)/g)].map((m) => Number(m[1])))
+  const grid = /(?:^|\s)(?:md:|lg:|sm:)?grid(?:\s|$)/.test(cls) || cols > 0
+  const row = !grid && /(?:^|\s)(?:md:|lg:|sm:)?flex(?:\s|$)/.test(cls) && !/flex-col/.test(cls)
+  const center = /text-center|items-center/.test(cls)
+  const kids = [...el.children].slice(0, 12).map((k, i) => drawEl(k, nowDark, depth + 1, i)).filter(Boolean)
+  if (!kids.length) return bg ? <div key={key} className="rounded-[3px]" style={{ background: bg, height: 10 }} /> : null
+  return (
+    <div
+      key={key}
+      className={'min-w-0 ' + (grid ? 'grid' : 'flex ' + (row ? 'flex-row items-center' : 'flex-col'))}
+      style={{ gap: 3, background: bg, padding: bg ? 5 : undefined, borderRadius: bg ? 3 : undefined, ...(grid ? { gridTemplateColumns: `repeat(${cols || Math.min(kids.length, 4)}, minmax(0, 1fr))` } : {}), ...(center && !row ? { alignItems: 'center' } : {}) }}
+    >
+      {kids}
+    </div>
+  )
+}
+
+function HtmlWire({ code, dark }: { code: string; dark: boolean }) {
+  const ready = useSyncExternalStore(() => () => {}, () => true, () => false) // the HTML is parsed in the browser only, so the first render matches the server's
+  const placeholder = (
+    <div className="flex flex-col gap-[2px] rounded-sm border border-dashed p-[3px]" style={{ borderColor: '#cbd5e1' }}>
+      {bar('40%', '#cbd5e1', 3)}{bar('85%', '#cbd5e1', 3)}{bar('60%', '#cbd5e1', 3)}
+    </div>
+  )
+  if (!ready) return placeholder
+  const kids = [...new DOMParser().parseFromString(code, 'text/html').body.children].slice(0, 12).map((e, i) => drawEl(e, dark, 0, i)).filter(Boolean)
+  return kids.length ? <div className="flex flex-col gap-[3px]">{kids}</div> : placeholder
+}
+
 export default function Wire({ node }: { node: Node }) {
   return (
     <div className="pointer-events-none flex flex-col gap-[3px]">
       <W n={node} c={{ dark: false, center: false }} />
+    </div>
+  )
+}
+
+// The wireframe laid out at a fixed logical width and scaled down, so every thumbnail keeps its real proportions.
+const LOGICAL = 300
+export function WireThumb({ node, scale, h }: { node: Node; scale: number; h: number }) {
+  return (
+    <div className="relative overflow-hidden bg-slate-50" style={{ height: h }}>
+      <div style={{ width: LOGICAL, transform: `scale(${scale})`, transformOrigin: '0 0' }} className="p-2">
+        <Wire node={node} />
+      </div>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-slate-50 to-transparent" />
     </div>
   )
 }

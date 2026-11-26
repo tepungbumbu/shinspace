@@ -1,4 +1,5 @@
 import { checkEmail, checkName, checkPassword, clientIp, createSession, hashPassword, json, readJson, tooMany } from '@/lib/auth'
+import { logActivity } from '@/lib/activity'
 import { db } from '@/lib/db'
 
 export async function POST(req: Request) {
@@ -15,12 +16,16 @@ export async function POST(req: Request) {
 
   let id: number
   try {
-    const r = db().prepare('INSERT INTO users (name, email, password_hash, created_at) VALUES (?, ?, ?, ?)').run(name, email, await hashPassword(password), Date.now())
+    // the very first account becomes the admin; the check and the insert are one statement, so two sign-ups cannot both win
+    const r = db()
+      .prepare("INSERT INTO users (name, email, password_hash, created_at, role) VALUES (?, ?, ?, ?, CASE WHEN EXISTS (SELECT 1 FROM users WHERE role = 'admin') THEN 'user' ELSE 'admin' END)")
+      .run(name, email, await hashPassword(password), Date.now())
     id = Number(r.lastInsertRowid)
   } catch (e) {
     if (String(e).includes('UNIQUE')) return json({ error: 'An account with this email already exists.', field: 'email' }, 409)
     throw e
   }
   await createSession(id, true)
+  logActivity(req, { id, name, email }, 'register')
   return json({ ok: true }, 201)
 }

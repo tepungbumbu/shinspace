@@ -5,7 +5,7 @@ import { useState, useSyncExternalStore } from 'react'
 import { clearLegacy, readLegacy } from '@/lib/legacy'
 import { copyPage, createPage, deletePage, renamePage, type PageFull, type User } from '@/lib/pages'
 import { starter } from '@/lib/sections'
-import { STYLE } from '@/lib/styles'
+import { isDarkHex, isHex, swatchHex } from '@/lib/styles'
 import type { Node } from '@/lib/tree'
 import { Ic } from './Ic'
 
@@ -27,8 +27,8 @@ function Thumb({ root }: { root: Node }) {
   return (
     <div className="flex h-36 flex-col gap-1 overflow-hidden rounded-lg bg-slate-50 p-1.5 ring-1 ring-slate-200">
       {kids.slice(0, 5).map((k) => {
-        const bg = STYLE.bg.sw![k.s.bg] ?? '#f1f5f9'
-        const dark = ['dark', 'indigo', 'sky', 'amber'].includes(k.s.bg)
+        const bg = swatchHex('bg', k.s.bg) ?? '#f1f5f9'
+        const dark = ['dark', 'indigo', 'sky', 'amber'].includes(k.s.bg) || (isHex(k.s.bg) && isDarkHex(k.s.bg))
         const line = dark ? 'bg-white/50' : 'bg-slate-300'
         return (
           <div key={k.id} style={{ background: bg }} className="flex min-h-3 flex-1 flex-col justify-center gap-1 rounded px-2">
@@ -43,7 +43,7 @@ function Thumb({ root }: { root: Node }) {
 
 const card = 'rounded-xl border border-slate-200 bg-white shadow-sm'
 
-function DashboardInner({ user, initial }: { user: User; initial: Item[] }) {
+function DashboardInner({ user, initial, isAdmin }: { user: User; initial: Item[]; isAdmin: boolean }) {
   const router = useRouter()
   const [items, setItems] = useState<Item[]>(initial)
   const [legacy, setLegacy] = useState(readLegacy)
@@ -74,15 +74,16 @@ function DashboardInner({ user, initial }: { user: User; initial: Item[] }) {
         <span className="text-xl font-semibold tracking-[0.18em]">SHINSPACE</span>
         <nav className="mt-10 space-y-1 text-sm">
           <span className="flex items-center gap-3 rounded-lg bg-violet-50 px-3 py-2.5 font-medium text-violet-700"><Ic n="container" /> Pages</span>
+          {isAdmin && <Link href="/admin" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-slate-600 transition hover:bg-slate-50"><Ic n="shield" /> Admin dashboard</Link>}
         </nav>
         <div className="mt-auto border-t border-slate-200 pt-4">
-          <div className="flex items-center gap-3">
+          <Link href="/profile" title="Your profile" className="-mx-2 flex items-center gap-3 rounded-lg p-2 transition hover:bg-slate-50">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#6d54b5] text-sm font-semibold text-white">{user.name[0]?.toUpperCase()}</span>
             <div className="min-w-0 text-sm">
               <div className="truncate font-medium">{user.name}</div>
               <div className="truncate text-xs text-slate-500">{user.email}</div>
             </div>
-          </div>
+          </Link>
           <button onClick={logout} className="mt-4 w-full rounded-lg border border-slate-300 py-2 text-sm text-slate-700 transition hover:bg-slate-50">Log out</button>
         </div>
       </aside>
@@ -90,7 +91,11 @@ function DashboardInner({ user, initial }: { user: User; initial: Item[] }) {
       <main className="min-w-0 flex-1 p-5 sm:p-8 lg:p-10">
         <div className="mb-6 flex items-center justify-between md:hidden">
           <span className="text-lg font-semibold tracking-[0.18em]">SHINSPACE</span>
-          <button onClick={logout} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700">Log out</button>
+          <div className="flex items-center gap-2">
+            <Link href="/profile" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700">Profile</Link>
+            {isAdmin && <Link href="/admin" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700">Admin</Link>}
+            <button onClick={logout} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700">Log out</button>
+          </div>
         </div>
 
         <header className="flex flex-wrap items-end justify-between gap-4">
@@ -149,11 +154,11 @@ function DashboardInner({ user, initial }: { user: User; initial: Item[] }) {
                   <div className="flex items-center gap-2 px-1 pb-1 pt-3">
                     <div className="min-w-0 flex-1">
                       <Link href={`/?page=${p.id}`} className="block truncate text-sm font-medium hover:text-violet-600">{p.name}</Link>
-                      <div className="text-xs text-slate-500">Edited {ago(p.updated, now)} · {Math.max(0, count(p.root) - 1)} blocks</div>
+                      <div className="text-xs text-slate-500">Edited {ago(p.updated, now)} · {Math.max(0, count(p.root) - 1)} blocks{p.extra > 0 && ` · ${p.extra + 1} pages`}</div>
                     </div>
-                    <button title="Rename" onClick={() => { const n = prompt('Page name', p.name)?.trim(); if (n) run(async () => { await renamePage(p.id, n); setItems(items.map((x) => (x.id === p.id ? { ...x, name: n, updated: Date.now() } : x))) }) }} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><Ic n="text" /></button>
-                    <button title="Duplicate" onClick={() => run(async () => setItems([await copyPage(p.id), ...items]))} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><Ic n="dup" /></button>
-                    <button title="Delete" onClick={() => { if (confirm(`Delete “${p.name}”? This cannot be undone.`)) run(async () => { await deletePage(p.id); setItems(items.filter((x) => x.id !== p.id)) }) }} className="rounded p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Ic n="del" /></button>
+                    <button title="Rename" onClick={() => { const n = prompt('Page name', p.name)?.trim(); if (n) run(async () => { await renamePage(p.id, n); setItems(items.map((x) => (x.id === p.id ? { ...x, name: n, updated: Date.now() } : x))) }) }} className="rounded p-2.5 text-slate-400 sm:p-1.5 hover:bg-slate-100 hover:text-slate-700"><Ic n="text" /></button>
+                    <button title="Duplicate" onClick={() => run(async () => setItems([await copyPage(p.id), ...items]))} className="rounded p-2.5 text-slate-400 sm:p-1.5 hover:bg-slate-100 hover:text-slate-700"><Ic n="dup" /></button>
+                    <button title="Delete" onClick={() => { if (confirm(`Delete “${p.name}”${p.extra > 0 ? ` and its ${p.extra} other ${p.extra === 1 ? 'page' : 'pages'}` : ''}? This cannot be undone.`)) run(async () => { await deletePage(p.id); setItems(items.filter((x) => x.id !== p.id)) }) }} className="rounded p-2.5 text-slate-400 sm:p-1.5 hover:bg-rose-50 hover:text-rose-600"><Ic n="del" /></button>
                   </div>
                 </article>
               ))}
@@ -166,7 +171,7 @@ function DashboardInner({ user, initial }: { user: User; initial: Item[] }) {
 }
 
 // Wait for the browser before rendering (relative times and the old browser-saved pages differ from the server's view).
-export default function Dashboard({ user, initial }: { user: User; initial: PageFull[] }) {
+export default function Dashboard({ user, initial, isAdmin }: { user: User; initial: PageFull[]; isAdmin: boolean }) {
   const mounted = useSyncExternalStore(() => () => {}, () => true, () => false)
-  return mounted ? <DashboardInner user={user} initial={initial} /> : null
+  return mounted ? <DashboardInner user={user} initial={initial} isAdmin={isAdmin} /> : null
 }

@@ -57,6 +57,7 @@ type Opt = {
   icon?: (i: number) => string | undefined
   summary?: boolean; share?: boolean
   radius?: string // Tailwind rounded-* class for the picture
+  ad?: boolean // a native ad: the label becomes the small uppercase "Advertorial" tag
 }
 
 // everything that sits on top of the thumbnail
@@ -64,7 +65,7 @@ const overlays = (a: Art, o: Opt, i: number): Node[] => {
   const out: Node[] = []
   const type = o.icon?.(i)
   if (type) out.push(HTML(TYPE[type], 'absolute right-1 top-1 z-10'))
-  if (o.label) out.push(TX(o.label, 'absolute left-0 top-0 z-10 inline-flex items-center bg-black/50 p-1 text-base text-white'))
+  if (o.label) out.push(TX(o.label, `absolute left-0 top-0 z-10 inline-flex items-center bg-black/50 text-white ${o.ad ? 'px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider' : 'p-1 text-base'}`))
   if (o.logo) out.push(HTML(LOGO, 'absolute right-2 top-2 z-10'))
   if (o.user === 'thumb') {
     out.push(N('spacer', { cls: 'pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-16 bg-linear-to-t from-black/50 to-transparent' }, { h: '' }))
@@ -94,8 +95,8 @@ const text = (a: Art, o: Opt, title: string, t: T = {}): Node[] => {
 const body = (kids: Node[]) => COL(kids, { cls: 'flex w-full flex-1 flex-col gap-1' })
 
 // ---------- card layouts (Card presets: column, list, list-compact, overlay, overlay-story) ----------
-const colCard = (a: Art, o: Opt, i: number, ratio = 'aspect-4/3', cls = ''): Node =>
-  COL([fig(a, o, i, ratio, 'w-full'), body(text(a, o, 'text-base'))], { cls: `group fd-item flex h-full flex-col gap-3 ${cls}` })
+const colCard = (a: Art, o: Opt, i: number, ratio = 'aspect-4/3', cls = '', title = 'text-base'): Node =>
+  COL([fig(a, o, i, ratio, 'w-full'), body(text(a, o, title))], { cls: `group fd-item flex h-full flex-col gap-3 ${cls}` })
 
 // grid default: thumbnail on the left on mobile, picture on top from md up
 const rowCard = (a: Art, o: Opt, i: number, ratio = 'aspect-4/3'): Node =>
@@ -110,20 +111,24 @@ const compactCard = (a: Art, o: Opt, i: number): Node =>
 const GRAD = 'absolute inset-0 z-10 flex flex-col justify-end gap-1 bg-linear-to-t from-[#191c19] to-transparent px-3 pb-3'
 const overlayCard = (a: Art, o: Opt, i: number, ratio = 'aspect-4/5', big = false): Node => {
   const t: Node[] = []
+  if (o.kicker) t.push(TX(o.kicker, 'inline-block w-max max-w-full rounded-sm bg-[#ff3c00] px-1.5 py-0.5 text-[11px] font-medium text-white'))
   if (o.sub !== false) t.push(TX(a.sub, 'block w-max text-[11px] font-semibold text-[#ff3c00] line-clamp-1'))
   t.push(HD(a.title, big ? 'text-xl font-bold text-white md:text-2xl line-clamp-3' : 'text-sm text-white md:text-base line-clamp-3', '3', big ? { 'base|font-weight': 'font-bold' } : {}))
-  if (o.summary) t.push(TX(a.summary, 'line-clamp-3 text-xs text-white/90 md:text-sm'))
+  if (o.tag) t.push(TX(a.tag, 'block text-xs uppercase text-white/70'))
+  if (o.user) t.push(COL([AV(a.user, a.ufill), TX(a.user, 'line-clamp-1 text-xs text-white/80')], { cls: 'mt-1 flex items-center gap-2' })) // on a picture the author always sits in the text block
+  if (o.summary) t.push(TX(a.summary, 'line-clamp-3 text-[13px] text-white/90 md:text-sm'))
   if (o.date !== false) t.push(TX(a.date, 'text-xs text-white/80'))
   if (o.share) t.push(HTML(SHARE('text-white'), 'mt-1'))
-  return COL([fig(a, { ...o, user: undefined }, i, ratio, 'w-full', [COL(t, { cls: big ? GRAD.replace('px-3 pb-3', 'px-4 pb-4') : GRAD })])], { cls: 'group fd-item self-start' })
+  // label, logo, type icon and rating still sit on the picture; the author moved into the text above
+  return COL([fig(a, { ...o, user: undefined, kicker: undefined }, i, ratio, 'w-full', [COL(t, { cls: big ? GRAD.replace('px-3 pb-3', 'px-4 pb-4') : GRAD })])], { cls: 'group fd-item self-start' })
 }
 
-const storyCard = (a: Art, i: number, o: { kicker?: string; title: boolean }): Node => {
+const storyCard = (a: Art, i: number, o: { kicker?: string; title: boolean; label?: string }): Node => {
   const t: Node[] = []
   if (o.kicker) t.push(TX(o.kicker, 'inline-block w-max rounded-sm bg-[#ff3c00] px-1.5 py-0.5 text-[11px] font-medium text-white'))
   if (o.title) t.push(HD(a.title, 'text-xs font-bold text-white line-clamp-3', '3', { 'base|font-weight': 'font-bold' }))
-  t.push(TX(a.date, 'text-[10px] text-white'))
-  return COL([fig(a, {}, i, 'aspect-9/16', 'w-[140px] md:w-[180px]', [COL(t, { cls: 'absolute inset-0 z-10 flex flex-col justify-end gap-1 bg-linear-to-t from-black from-0% via-black/0 via-55% px-3 pb-3 pt-[40%]' })])], { cls: 'group' })
+  t.push(TX(a.date, 'text-[11px] text-white'))
+  return COL([fig(a, { label: o.label, ad: !!o.label }, i, 'aspect-9/16', 'w-[140px] md:w-[180px]', [COL(t, { cls: 'absolute inset-0 z-10 flex flex-col justify-end gap-1 bg-linear-to-t from-black from-0% via-black/0 via-55% px-3 pb-3 pt-[40%]' })])], { cls: 'group' })
 }
 
 // Copy-link button (ShopCard): click copies the link, the icon becomes a check and a "Link disalin" tooltip shows for 2 seconds.
@@ -135,7 +140,7 @@ const COPY_JS =
   "navigator.clipboard&&window.isSecureContext?navigator.clipboard.writeText(u).then(ok,fb):fb()"
 const LINK_ICON = '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'
 const COPY = (link: string) =>
-  `<div class="group/c flex items-center gap-1.5"><span role="status" class="pointer-events-none relative translate-x-2 rounded-md bg-white px-2.5 py-1 text-xs font-bold text-[#232323] opacity-0 shadow-md transition duration-200 group-[.is-copied]/c:translate-x-0 group-[.is-copied]/c:opacity-100">Link disalin<i class="absolute -right-1 top-1/2 size-2 -translate-y-1/2 rotate-45 bg-white"></i></span>` +
+  `<div class="group/c flex items-center gap-1.5"><span role="status" class="pointer-events-none relative translate-x-2 whitespace-nowrap rounded-md bg-white px-2.5 py-1 text-xs font-bold text-[#232323] opacity-0 shadow-md transition duration-200 group-[.is-copied]/c:translate-x-0 group-[.is-copied]/c:opacity-100">Link disalin<i class="absolute -right-1 top-1/2 size-2 -translate-y-1/2 rotate-45 bg-white"></i></span>` +
   `<button type="button" data-link="${link}" aria-label="Salin link produk" onclick="${COPY_JS}" class="grid size-8 cursor-pointer place-items-center rounded-full bg-white/75 text-[#666] backdrop-blur transition group-[.is-copied]/c:bg-[#84bd44] group-[.is-copied]/c:text-white">` +
   `${SVG(LINK_ICON, 15).replace('<svg ', '<svg class="group-[.is-copied]/c:hidden" ')}${SVG('<path d="M5 12l5 5 9-10"/>', 15).replace('<svg ', '<svg class="hidden group-[.is-copied]/c:block" ')}</button></div>`
 
@@ -147,7 +152,7 @@ const shopCard = (i: number): Node => {
     COL([PIC(a, 'aspect-4/3'), HTML(copy, 'absolute right-2 top-2 z-10')], { cls: 'relative overflow-hidden' }),
     COL([
       HD(title, 'text-sm font-bold text-[#232323] md:text-base line-clamp-2', '3', { 'base|font-weight': 'font-bold' }),
-      COL([TX(price, 'text-sm font-bold text-[#ff3c00]'), TX(was, 'text-[10px] text-gray-400 line-through')], { cls: 'flex flex-wrap items-center gap-1' }),
+      COL([TX(price, 'text-sm font-bold text-[#ff3c00]'), TX(was, 'text-[11px] text-gray-400 line-through')], { cls: 'flex flex-wrap items-center gap-1' }),
       COL([TX(off, 'text-xs text-gray-400'), TX(sold, 'hidden text-xs text-[#232323] md:block')], { cls: 'flex items-center justify-between' }),
       TX('Beli Sekarang  ›', 'mt-auto flex items-center justify-center gap-1.5 rounded-md bg-[#ff3c00] px-2 py-1.5 text-xs font-bold text-white md:text-sm'),
     ], { cls: 'flex flex-1 flex-col gap-1.5 p-2.5 md:p-4' }),
@@ -191,30 +196,6 @@ const moreSlide = (w = 'w-[152px] md:w-[257px]') =>
     cls: `${w} flex min-h-40 shrink-0 snap-start flex-col items-center justify-center gap-3 rounded-lg border border-[#ff3c00] bg-white text-center`,
   })
 
-const n = (k: number) => ARTS.slice(0, k)
-
-// ---------- the sections ----------
-export const FEED_LAYOUTS: [string, string, () => Node][] = [
-  ['Grid · 4 columns', 'Thumbnail left on mobile, picture on top from md, four across.', () => frame({ title: 'Berita Terbaru' }, [grid('grid-cols-1 md:grid-cols-4', n(8).map((a, i) => rowCard(a, {}, i)))], { btn: 'Lihat Semua' })],
-  ['Grid · 3 columns', 'The same card in three columns.', () => frame({ title: 'Pilihan Redaksi' }, [grid('grid-cols-1 md:grid-cols-3', n(6).map((a, i) => rowCard(a, {}, i)))], { btn: 'Lihat Semua' })],
-  ['Grid · 2 columns', 'Wide cards, two across.', () => frame({ title: 'Sedang Hangat' }, [grid('grid-cols-1 md:grid-cols-2', n(4).map((a, i) => rowCard(a, {}, i, 'aspect-video')))])],
-  ['Grid · square photos', 'Square thumbnails with rounded corners, 2 → 4 columns.', () => frame({ title: 'Foto Pilihan' }, [grid('grid-cols-2 md:grid-cols-4', n(8).map((a, i) => colCard(a, { radius: 'rounded-xl', date: false }, i, 'aspect-square')))])],
-  ['Overlay grid', 'Title over the picture on a dark gradient, 2 → 3 columns.', () => frame({ title: 'Sorotan' }, [grid('grid-cols-2 md:grid-cols-3', n(6).map((a, i) => overlayCard(a, {}, i)))])],
-  ['Overlay grid · summary + share', 'Overlay cards with a short summary and a SHARE row.', () => frame({ title: 'Kisah Pilihan', desc: 'Bacaan mendalam untuk akhir pekan.' }, [grid('grid-cols-1 sm:grid-cols-2 md:grid-cols-3', n(3).map((a, i) => overlayCard(a, { summary: true, share: true }, i, 'aspect-4/5')))])],
-  ['Hero overlay + list', 'One big 16:9 overlay story beside a compact list.', () =>
-    frame({ title: 'Utama' }, [G('grid-cols-1 lg:grid-cols-[2fr_1fr]', [overlayCard(ARTS[0], { summary: true }, 0, 'aspect-video', true), stack(ARTS.slice(1, 5).map((a, i) => compactCard(a, { date: false }, i)), 'gap-4')], { gap: 'lg' })])],
-  ['List', 'Wide thumbnail left, large title right.', () => frame({ title: 'Terpopuler' }, [stack(n(5).map((a, i) => listCard(a, {}, i)))], { btn: 'Lihat Semua' })],
-  ['List · compact', 'Small thumbnails and short titles, two columns.', () => frame({ title: 'Baca Juga' }, [grid('grid-cols-1 md:grid-cols-2', n(6).map((a, i) => compactCard(a, {}, i)))])],
-  ['Slider', 'Snap-scrolling cards with arrows beside the title.', () => frame({ title: 'Terbaru', arrows: true }, [track(n(8).map((a, i) => slide(colCard(a, {}, i))))], { slider: true })],
-  ['Slider · side arrows', 'Arrows centered on the left and right edges.', () => frame({ title: 'Rekomendasi' }, [COL([track(n(8).map((a, i) => slide(colCard(a, {}, i)))), SIDE_ARROWS], { cls: 'relative' })], { slider: true })],
-  ['Slider · “Lihat Semua” card', 'A last card that links to the full index.', () => frame({ title: 'Terkini', arrows: true }, [track([...n(6).map((a, i) => slide(colCard(a, {}, i))), moreSlide()])], { slider: true })],
-  ['Slider · overlay', 'Tall overlay cards that scroll sideways.', () => frame({ title: 'Cerita Hari Ini', arrows: true }, [track(n(8).map((a, i) => slide(overlayCard(a, {}, i))))], { slider: true })],
-  ['Stories slider', 'Portrait 9:16 story cards with a content-count chip and a logo header.', () =>
-    frame({ logo: true, desc: 'Kumpulan cerita singkat pilihan untukmu, geser untuk melihat semuanya.', inline: true, arrows: true }, [track([...n(8).map((a, i) => slide(storyCard(a, i, { kicker: '10 Konten', title: true }), 'w-[140px] md:w-[180px]')), moreSlide('w-[140px] md:w-[180px]')])], { slider: true })],
-  ['Shop grid', 'Product cards with price, strike-through, discount and a buy button.', () => frame({ title: 'Ide Belanja' }, [grid('grid-cols-2 md:grid-cols-4', SHOP.map((_, i) => shopCard(i)))], { btn: 'Lihat Semua' })],
-  ['Shop slider', 'Product cards in a slider with a “Lihat Semua” card.', () => frame({ title: 'Ide Belanja', arrows: true }, [track([...SHOP.map((_, i) => slide(shopCard(i))), moreSlide()])], { slider: true })],
-]
-
 const PAGER = (pages: number, per: number) => {
   const b = 'flex size-9 items-center justify-center rounded-full border border-[#232323]/30 text-sm font-medium text-[#232323] transition hover:border-[#84bd44] disabled:opacity-40 aria-[current=page]:border-[#ff3c00] aria-[current=page]:bg-[#ff3c00] aria-[current=page]:text-white'
   const nums = Array.from({ length: pages }, (_, i) => `<button type="button" data-p="${i}" class="${b}"${i === 0 ? ' aria-current="page"' : ''}>${i + 1}</button>`).join('')
@@ -223,26 +204,156 @@ const PAGER = (pages: number, per: number) => {
   return HTML(`<nav class="mt-8 flex flex-wrap items-center justify-center gap-1.5" aria-label="Halaman"><button type="button" data-prev class="${b}" aria-label="Sebelumnya">${SVG('<path d="M15 18l-6-6 6-6"/>', 16)}</button>${nums}<button type="button" data-next class="${b}" aria-label="Berikutnya">${SVG('<path d="M9 18l6-6-6-6"/>', 16)}</button></nav><script>${js}</script>`)
 }
 
-export const FEED_OPTIONS: [string, string, () => Node][] = [
-  ['Image label + type icons', 'A corner label plus photo, video, infographic and stories badges.', () =>
-    frame({ title: 'Foto & Video' }, [grid('grid-cols-1 md:grid-cols-4', n(8).map((a, i) => rowCard(a, { label: 'Foto', icon: (k) => (['foto', 'video', 'infografis', 'stories'] as const)[k % 4] }, i)))])],
-  ['Logo label + kicker chip', 'A logo in the thumbnail corner and a content-count chip above the title.', () =>
-    frame({ title: 'Pilihan Mitra' }, [grid('grid-cols-1 md:grid-cols-3', n(6).map((a, i) => rowCard(a, { logo: true, kicker: `${(i + 2) * 3} Konten`, sub: false }, i)))])],
-  ['Tag + title line', 'An uppercase tag with an accent rule under each title.', () =>
-    frame({ title: 'Jelajah Nusantara' }, [grid('grid-cols-1 md:grid-cols-4', n(4).map((a, i) => colCard(a, { tag: true, date: false }, i)))])],
-  ['Author under title', 'A round avatar and the writer’s name below the headline.', () =>
-    frame({ title: 'Tulisan Kontributor' }, [grid('grid-cols-1 md:grid-cols-3', n(6).map((a, i) => rowCard(a, { user: 'text' }, i)))])],
-  ['Author on thumbnail + rating', 'Author chip over the picture with a star rating.', () =>
-    frame({ title: 'Ulasan Pilihan' }, [grid('grid-cols-2 md:grid-cols-4', n(4).map((a, i) => colCard(a, { user: 'thumb', rating: true, radius: 'rounded-xl', date: false }, i)))])],
-  ['Native ad in the feed', 'A sponsored card slotted in as the second item.', () => {
-    const items = n(4).map((a, i) => rowCard(a, {}, i))
-    const ad = COL([colCard({ ...ARTS[6], sub: 'Promoted', title: 'Promo akhir tahun: diskon hingga 50% untuk semua peralatan dapur' }, {}, 1), TX('IKLAN', 'absolute left-1.5 top-1.5 z-20 rounded bg-white/90 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-[#666]')], { cls: 'relative' })
-    return frame({ title: 'Untuk Kamu' }, [grid('grid-cols-1 md:grid-cols-4', [items[0], ad, items[1], items[2]])])
-  }],
-  ['Numbered paging', 'Twelve cards, six per page, with page buttons (works on the exported page).', () =>
-    frame({ title: 'Arsip Berita' }, [grid('grid-cols-1 md:grid-cols-3', [...n(8), ...n(4)].map((a, i) => rowCard(a, {}, i)), 'fd-paged'), PAGER(2, 6)], { paged: true })],
-  ['Header · description + sponsor', 'A section header with a short description and a sponsor on the right.', () =>
-    frame({ title: "d'Foodspot Review", desc: 'Ulasan lengkap rekomendasi tempat makan untukmu.', sponsor: true }, [grid('grid-cols-1 md:grid-cols-3', n(3).map((a, i) => rowCard(a, { logo: true }, i)))])],
-  ['Header · logo + button', 'A logo header with the description beside it and a button below.', () =>
-    frame({ logo: true, desc: 'Masih bingung cari inspirasi masakan hari ini? Yuk pilih resep kesukaanmu di sini.', inline: true }, [grid('grid-cols-2 md:grid-cols-4', n(4).map((a, i) => colCard(a, { kicker: '10 Konten', sub: false, radius: 'rounded-xl' }, i, 'aspect-square')))], { btn: 'Lihat Semua' })],
+
+// ---------- every feed is a small config; buildFeed turns it into blocks, and the Inspector can rebuild it ----------
+export type FeedCfg = {
+  layout: 'grid' | 'list' | 'compact' | 'slider' | 'stories' | 'shop' | 'shop-slider' | 'hero'
+  n?: number // how many items
+  cols?: string // grid column classes
+  card?: 'row' | 'col' // grid card: thumbnail left on mobile (row) or picture on top (col)
+  ratio?: string
+  overlay?: boolean // title over the picture (grid and slider only)
+  arrows?: 'top' | 'side'
+  more?: boolean // slider: a closing "Lihat Semua" card
+  paged?: number // items per page (numbered paging)
+  ad?: boolean // a native ad slotted in among the items (keeps the item count)
+  adPos?: number // where it goes, counted from 0 (default 1: the second item)
+  adLabel?: string // the tag on its picture (default Advertorial; empty = none)
+  head?: Head
+  btn?: string
+  sub?: boolean; date?: boolean; summary?: boolean; share?: boolean
+  label?: string; logo?: boolean; kicker?: string; tag?: boolean
+  user?: 'text' | 'thumb'; rating?: boolean; icons?: boolean; radius?: string
+}
+
+const art = (i: number) => ARTS[i % ARTS.length]
+const optsOf = (c: FeedCfg, i: number): Opt => ({
+  sub: c.sub, date: c.date, label: c.label, logo: c.logo, tag: c.tag, user: c.user, rating: c.rating, summary: c.summary, share: c.share, radius: c.radius,
+  kicker: c.kicker?.replace('{n}', String((i + 2) * 3)),
+  icon: c.icons ? (k) => (['foto', 'video', 'infografis', 'stories'] as const)[k % 4] : undefined,
+})
+const oneCol = (cols = 'grid-cols-1 md:grid-cols-3') => /(^|\s)grid-cols-1(\s|$)/.test(cols)
+const card = (c: FeedCfg, i: number, layout: 'grid' | 'slider', a = art(i), o = optsOf(c, i)): Node => {
+  if (c.overlay) return overlayCard(a, o, i, c.ratio ?? 'aspect-4/5')
+  // the thumbnail-left card only fits one column on a phone; in two columns its text is squeezed to a sliver, so it stacks instead
+  const wide = layout === 'grid' && !oneCol(c.cols)
+  if (layout === 'slider' || c.card === 'col' || wide) return colCard(a, o, i, c.ratio ?? 'aspect-4/3', '', wide ? 'text-sm md:text-base' : 'text-base')
+  return rowCard(a, o, i, c.ratio ?? 'aspect-4/3')
+}
+
+// Native ad (Kompostudio: nativeAd + adPosition + adLabel). The ad is slotted in at `adPos` and the last item makes room, so the count stays.
+const AD: Art = { ...ARTS[6], sub: 'Promoted', title: 'Promo akhir tahun: diskon hingga 50% untuk semua peralatan dapur' }
+const withAd = (c: FeedCfg, items: Node[], make: (a: Art, o: Opt, pos: number) => Node): Node[] => {
+  if (!c.ad || c.layout === 'hero' || items.length < 2) return items
+  const pos = Math.min(Math.max(Math.round(c.adPos ?? 1), 0), items.length - 1)
+  const label = (c.adLabel ?? 'Advertorial').trim()
+  return [...items.slice(0, pos), make(AD, { ad: true, date: false, label: label || undefined, radius: c.radius }, pos), ...items.slice(pos, -1)]
+}
+
+export function buildFeed(c: FeedCfg): Node {
+  const ids = Array.from({ length: c.n ?? 6 }, (_, i) => i)
+  const head = c.head ?? {}
+  const btn = c.btn ? { btn: c.btn } : {}
+  let root: Node
+  switch (c.layout) {
+    case 'grid': {
+      const cards = withAd(c, ids.map((i) => card(c, i, 'grid')), (a, o, pos) => card(c, pos, 'grid', a, o))
+      const paged = c.paged ? c.paged : 0
+      root = frame(head, [grid(c.cols ?? 'grid-cols-1 md:grid-cols-3', cards, paged ? 'fd-paged' : ''), ...(paged ? [PAGER(Math.ceil(cards.length / paged), paged)] : [])], { ...btn, paged: !!paged })
+      break
+    }
+    case 'slider': {
+      const slides = withAd(c, ids.map((i) => card(c, i, 'slider')), (a, o, pos) => card(c, pos, 'slider', a, o)).map((k) => slide(k))
+      if (c.more) slides.push(moreSlide())
+      const tr = track(slides)
+      const side = c.arrows === 'side'
+      root = frame({ ...head, arrows: !side }, [side ? COL([tr, SIDE_ARROWS], { cls: 'relative' }) : tr], { slider: true, ...btn })
+      break
+    }
+    case 'list':
+      root = frame(head, [stack(withAd(c, ids.map((i) => listCard(art(i), optsOf(c, i), i)), listCard))], btn)
+      break
+    case 'compact':
+      root = frame(head, [grid('grid-cols-1 md:grid-cols-2', withAd(c, ids.map((i) => compactCard(art(i), optsOf(c, i), i)), compactCard))], btn)
+      break
+    case 'stories':
+      root = frame({ ...head, arrows: true }, [track([...withAd(c, ids.map((i) => storyCard(art(i), i, { kicker: c.kicker, title: true })), (a, o, pos) => storyCard(a, pos, { title: true, label: o.label })).map((k) => slide(k, 'w-[140px] md:w-[180px]')), moreSlide('w-[140px] md:w-[180px]')])], { slider: true })
+      break
+    case 'shop':
+      root = frame(head, [grid('grid-cols-2 md:grid-cols-4', withAd(c, ids.map((i) => shopCard(i)), (a, o, pos) => colCard(a, o, pos)))], btn)
+      break
+    case 'shop-slider':
+      root = frame({ ...head, arrows: true }, [track([...withAd(c, ids.map((i) => shopCard(i)), (a, o, pos) => colCard(a, o, pos)).map((k) => slide(k)), moreSlide()])], { slider: true })
+      break
+    default: // hero: one big 16:9 overlay story beside a compact list
+      root = frame(head, [G('grid-cols-1 lg:grid-cols-[2fr_1fr]', [overlayCard(ARTS[0], { summary: true }, 0, 'aspect-video', true), stack(ARTS.slice(1, 5).map((a, i) => compactCard(a, { date: false }, i)), 'gap-4')], { gap: 'lg' })])
+  }
+  root.p.feed = JSON.stringify(c) // the Inspector reads this to show the feed's settings and to rebuild it
+  return root
+}
+
+// ---- what the Inspector needs ----
+export const parseFeed = (n: Node): FeedCfg | null => {
+  try {
+    const c = JSON.parse(n.p.feed ?? '')
+    return c && typeof c === 'object' && typeof c.layout === 'string' ? (c as FeedCfg) : null
+  } catch { return null }
+}
+export const feedCaps = (c: FeedCfg) => ({ overlay: c.layout === 'grid' || c.layout === 'slider', cards: c.layout !== 'shop' && c.layout !== 'shop-slider' && c.layout !== 'stories' && c.layout !== 'hero', items: c.layout !== 'hero', ad: c.layout !== 'hero' })
+
+const titleOf = (n: Node): string | undefined => {
+  if (n.type === 'heading' && n.p.level === '2') return n.p.text
+  for (const k of n.c ?? []) { const t = titleOf(k); if (t !== undefined) return t }
+  return undefined
+}
+// Rebuild a feed with changed settings. The section title you typed is kept, and so are the section's own style and attributes.
+export function rebuildFeed(node: Node, patch: Partial<FeedCfg>): Node {
+  const cfg = parseFeed(node)
+  if (!cfg) return node
+  const title = titleOf(node)
+  const next: FeedCfg = { ...cfg, ...patch, head: { ...cfg.head, ...(title !== undefined && cfg.head?.title !== undefined ? { title } : {}) } }
+  const built = buildFeed(next)
+  const p = { ...node.p }
+  delete p.feed
+  return { ...built, id: node.id, p: { ...built.p, ...p }, s: { ...built.s, ...node.s }, t: node.t ?? built.t }
+}
+
+// ---------- the sections ----------
+type Def = [title: string, desc: string, cfg: FeedCfg]
+const DEFS_LAYOUTS: Def[] = [
+  ['Grid · 4 columns', 'Thumbnail left on mobile, picture on top from md, four across.', { layout: 'grid', n: 8, cols: 'grid-cols-1 md:grid-cols-4', card: 'row', head: { title: 'Berita Terbaru' }, btn: 'Lihat Semua' }],
+  ['Grid · 3 columns', 'The same card in three columns.', { layout: 'grid', n: 6, cols: 'grid-cols-1 md:grid-cols-3', card: 'row', head: { title: 'Pilihan Redaksi' }, btn: 'Lihat Semua' }],
+  ['Grid · 2 columns', 'Wide cards, two across.', { layout: 'grid', n: 4, cols: 'grid-cols-1 md:grid-cols-2', card: 'row', ratio: 'aspect-video', head: { title: 'Sedang Hangat' } }],
+  ['Grid · square photos', 'Square thumbnails with rounded corners, 2 → 4 columns.', { layout: 'grid', n: 8, cols: 'grid-cols-2 md:grid-cols-4', card: 'col', ratio: 'aspect-square', radius: 'rounded-xl', date: false, head: { title: 'Foto Pilihan' } }],
+  ['Overlay grid', 'Title over the picture on a dark gradient, 2 → 3 columns.', { layout: 'grid', n: 6, cols: 'grid-cols-2 md:grid-cols-3', overlay: true, head: { title: 'Sorotan' } }],
+  ['Overlay grid · summary + share', 'Overlay cards with a short summary and a SHARE row.', { layout: 'grid', n: 3, cols: 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3', overlay: true, summary: true, share: true, head: { title: 'Kisah Pilihan', desc: 'Bacaan mendalam untuk akhir pekan.' } }],
+  ['Hero overlay + list', 'One big 16:9 overlay story beside a compact list.', { layout: 'hero', head: { title: 'Utama' } }],
+  ['List', 'Wide thumbnail left, large title right.', { layout: 'list', n: 5, head: { title: 'Terpopuler' }, btn: 'Lihat Semua' }],
+  ['List · compact', 'Small thumbnails and short titles, two columns.', { layout: 'compact', n: 6, head: { title: 'Baca Juga' } }],
+  ['Slider', 'Snap-scrolling cards with arrows beside the title.', { layout: 'slider', n: 8, arrows: 'top', head: { title: 'Terbaru' } }],
+  ['Slider · side arrows', 'Arrows centered on the left and right edges.', { layout: 'slider', n: 8, arrows: 'side', head: { title: 'Rekomendasi' } }],
+  ['Slider · “Lihat Semua” card', 'A last card that links to the full index.', { layout: 'slider', n: 6, arrows: 'top', more: true, head: { title: 'Terkini' } }],
+  ['Slider · overlay', 'Tall overlay cards that scroll sideways.', { layout: 'slider', n: 8, arrows: 'top', overlay: true, head: { title: 'Cerita Hari Ini' } }],
+  ['Stories slider', 'Portrait 9:16 story cards with a content-count chip and a logo header.', { layout: 'stories', n: 8, kicker: '10 Konten', head: { logo: true, desc: 'Kumpulan cerita singkat pilihan untukmu, geser untuk melihat semuanya.', inline: true } }],
+  ['Shop grid', 'Product cards with price, strike-through, discount and a buy button.', { layout: 'shop', n: 8, head: { title: 'Ide Belanja' }, btn: 'Lihat Semua' }],
+  ['Shop slider', 'Product cards in a slider with a “Lihat Semua” card.', { layout: 'shop-slider', n: 8, head: { title: 'Ide Belanja' } }],
 ]
+
+const DEFS_OPTIONS: Def[] = [
+  ['Image label + type icons', 'A corner label plus photo, video, infographic and stories badges.', { layout: 'grid', n: 8, cols: 'grid-cols-1 md:grid-cols-4', card: 'row', label: 'Foto', icons: true, head: { title: 'Foto & Video' } }],
+  ['Logo label + kicker chip', 'A logo in the thumbnail corner and a content-count chip above the title.', { layout: 'grid', n: 6, cols: 'grid-cols-1 md:grid-cols-3', card: 'row', logo: true, kicker: '{n} Konten', sub: false, head: { title: 'Pilihan Mitra' } }],
+  ['Tag + title line', 'An uppercase tag with an accent rule under each title.', { layout: 'grid', n: 4, cols: 'grid-cols-1 md:grid-cols-4', card: 'col', tag: true, date: false, head: { title: 'Jelajah Nusantara' } }],
+  ['Author under title', 'A round avatar and the writer’s name below the headline.', { layout: 'grid', n: 6, cols: 'grid-cols-1 md:grid-cols-3', card: 'row', user: 'text', head: { title: 'Tulisan Kontributor' } }],
+  ['Author on thumbnail + rating', 'Author chip over the picture with a star rating.', { layout: 'grid', n: 4, cols: 'grid-cols-2 md:grid-cols-4', card: 'col', user: 'thumb', rating: true, radius: 'rounded-xl', date: false, head: { title: 'Ulasan Pilihan' } }],
+  ['Native ad in the feed', 'A sponsored card slotted in as the second item.', { layout: 'grid', n: 4, cols: 'grid-cols-1 md:grid-cols-4', card: 'row', ad: true, head: { title: 'Untuk Kamu' } }],
+  ['Numbered paging', 'Twelve cards, six per page, with page buttons (works on the exported page).', { layout: 'grid', n: 12, cols: 'grid-cols-1 md:grid-cols-3', card: 'row', paged: 6, head: { title: 'Arsip Berita' } }],
+  ['Header · description + sponsor', 'A section header with a short description and a sponsor on the right.', { layout: 'grid', n: 3, cols: 'grid-cols-1 md:grid-cols-3', card: 'row', logo: true, head: { title: "d'Foodspot Review", desc: 'Ulasan lengkap rekomendasi tempat makan untukmu.', sponsor: true } }],
+  ['Header · logo + button', 'A logo header with the description beside it and a button below.', { layout: 'grid', n: 4, cols: 'grid-cols-2 md:grid-cols-4', card: 'col', ratio: 'aspect-square', kicker: '10 Konten', sub: false, radius: 'rounded-xl', head: { logo: true, desc: 'Masih bingung cari inspirasi masakan hari ini? Yuk pilih resep kesukaanmu di sini.', inline: true }, btn: 'Lihat Semua' }],
+]
+
+const toEntries = (d: Def[]): [string, string, () => Node][] => d.map(([title, desc, cfg]) => [title, desc, () => buildFeed(cfg)])
+export const FEED_LAYOUTS = toEntries(DEFS_LAYOUTS)
+export const FEED_OPTIONS = toEntries(DEFS_OPTIONS)
+// the default settings of each shipped feed, by title (used to give already-saved library rows their settings)
+const CFG_BY_TITLE = new Map<string, FeedCfg>([...DEFS_LAYOUTS, ...DEFS_OPTIONS].map(([t, , c]) => [t, c]))
+export const feedCfgFor = (title: string) => CFG_BY_TITLE.get(title)

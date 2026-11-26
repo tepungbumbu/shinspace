@@ -35,8 +35,19 @@ export const STYLE: Record<string, Style> = {
   ...Object.fromEntries(Object.entries(SIDES).map(([k, n]) => [`p${k}`, { label: `Padding ${n}`, o: side(`p${k}`) }])),
 }
 
+// A custom colour is stored as a hex value (#rrggbb, or #rrggbbaa with opacity) and rendered as an arbitrary-value class.
+export const isHex = (v: unknown): v is string => typeof v === 'string' && /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(v)
+const CUSTOM: Record<string, string> = { bg: 'bg', color: 'text' }
+// the colour behind a swatch value: a named preset or a custom hex
+export const swatchHex = (k: 'bg' | 'color', v: string | undefined) => (isHex(v) ? v : v ? STYLE[k].sw?.[v] : undefined)
+// is this background dark? (used to pick light lines in thumbnails)
+export const isDarkHex = (v: string) => {
+  const n = parseInt(v.slice(1, 7), 16)
+  return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 < 0.5
+}
+
 export const sc = (s: Record<string, string>) =>
-  Object.entries(s).map(([k, v]) => STYLE[k]?.o[v]).filter(Boolean).join(' ')
+  Object.entries(s).map(([k, v]) => STYLE[k]?.o[v] ?? (CUSTOM[k] && isHex(v) ? `${CUSTOM[k]}-[${v}]` : undefined)).filter(Boolean).join(' ')
 
 // "Show on" breakpoints: the block is hidden only inside the ticked-off range.
 export const HIDE: Record<string, string> = {

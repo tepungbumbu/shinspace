@@ -332,7 +332,7 @@ export const sameProp = (id: string, c: string) => {
   if (p.k === 'opt') return p.o!.includes(c)
   if (p.k === 'color') {
     const rest = c.startsWith(p.pre + '-') ? c.slice(p.pre!.length + 1) : ''
-    return SPECIAL.includes(rest) || PALETTES.some((x) => rest.startsWith(x + '-'))
+    return SPECIAL.includes(rest) || PALETTES.some((x) => rest.startsWith(x + '-')) || /^\[#[0-9a-f]{6,8}\]$/i.test(rest) // a custom colour
   }
   return false
 }

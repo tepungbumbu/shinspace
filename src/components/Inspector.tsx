@@ -1,14 +1,16 @@
 'use client'
 import { useState, type ReactNode } from 'react'
 import { BLOCKS, type Field } from '@/lib/blocks'
-import { HIDE, SPACE, STYLE } from '@/lib/styles'
+import { HIDE, isHex, SPACE, STYLE, swatchHex } from '@/lib/styles'
+import { CustomColorButton } from './ColorPicker'
+import { feedCaps, parseFeed, type FeedCfg } from '@/lib/feeds'
 import type { Node } from '@/lib/tree'
 import type { Act } from './Canvas'
 import { Ic } from './Ic'
 import TailwindPanel from './TailwindPanel'
 
 type Patch = { p?: Record<string, string>; s?: Record<string, string>; t?: Record<string, string> }
-type Props = { node: Node; onChange: (id: string, ch: Patch) => void; onAct: (a: Act) => void; onClose: () => void }
+type Props = { node: Node; onChange: (id: string, ch: Patch) => void; onAct: (a: Act) => void; onClose: () => void; onCollapse?: () => void; onSaveComponent?: () => void; onFeed: (patch: Partial<FeedCfg>) => void; feedJump?: () => void }
 
 const LAYOUT_KEYS = ['gap', 'items', 'h', 'isize']
 const input = 'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:bg-white'
@@ -113,16 +115,71 @@ function IconPicker({ value, options, onChange }: { value: string; options: stri
   )
 }
 
+// one row: label on the left, switch on the right
+function RowSwitch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (c: boolean) => void }) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-3 text-sm font-medium">
+      <span>{label}</span>
+      <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
+      <span className="relative h-6 w-10 shrink-0 rounded-full bg-slate-300 transition after:absolute after:left-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:bg-indigo-500 peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400" />
+    </label>
+  )
+}
+
+// The feed's own settings (like Kompostudio's "Dasar" group). Changing one rebuilds the cards from the feed's configuration.
+function FeedPanel({ cfg, onFeed, onDetach }: { cfg: FeedCfg; onFeed: (p: Partial<FeedCfg>) => void; onDetach: () => void }) {
+  const caps = feedCaps(cfg)
+  return (
+    <Section title="Feed">
+      <div className="space-y-3.5">
+        {caps.items && (
+          <label className="flex items-center justify-between gap-3 text-sm font-medium">
+            Number of items
+            <input type="number" min={1} max={12} value={cfg.n ?? 6} onChange={(e) => { const v = Math.round(Number(e.target.value)); if (v >= 1 && v <= 12) onFeed({ n: v }) }} className={input + ' !w-20 text-right'} />
+          </label>
+        )}
+        {caps.overlay && <RowSwitch label="Overlay (title over the picture)" checked={!!cfg.overlay} onChange={(overlay) => onFeed({ overlay })} />}
+        {caps.cards && <RowSwitch label="Show subtitle" checked={cfg.sub !== false} onChange={(sub) => onFeed({ sub })} />}
+        {caps.cards && <RowSwitch label="Show date" checked={cfg.date !== false} onChange={(date) => onFeed({ date })} />}
+        {caps.ad && (
+          <div className="space-y-3 border-t border-slate-200 pt-3.5">
+            <RowSwitch label="Native ad" checked={!!cfg.ad} onChange={(ad) => onFeed({ ad })} />
+            {cfg.ad && (
+              <div className="space-y-3 border-l-2 border-slate-200 pl-3">
+                <label className="flex items-center justify-between gap-3 text-sm font-medium">
+                  <span>Position <span className="block text-xs font-normal text-slate-400">0 = first item</span></span>
+                  <input type="number" min={0} max={11} value={cfg.adPos ?? 1} onChange={(e) => { const v = Math.round(Number(e.target.value)); if (v >= 0 && v <= 11) onFeed({ adPos: v }) }} className={input + ' !w-20 text-right'} />
+                </label>
+                <label className="flex items-center justify-between gap-3 text-sm font-medium">
+                  Label
+                  <input value={cfg.adLabel ?? 'Advertorial'} maxLength={20} onChange={(e) => onFeed({ adLabel: e.target.value })} placeholder="none" className={input + ' !w-36'} />
+                </label>
+              </div>
+            )}
+          </div>
+        )}
+        {!caps.items && !caps.overlay && !caps.cards && !caps.ad && <p className="text-sm text-slate-500">This layout has no settings to change. Edit its blocks directly.</p>}
+      </div>
+      <p className="text-xs leading-relaxed text-slate-400">Changing these rebuilds the cards, so edits made inside the feed are replaced (Ctrl+Z brings them back). The section title is kept.</p>
+      <button onClick={onDetach} className="text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline">Stop rebuilding: edit this feed freely</button>
+    </Section>
+  )
+}
+
 function Swatches({ k, value, onChange }: { k: 'bg' | 'color'; value: string; onChange: (v: string) => void }) {
   const ring = 'ring-2 ring-indigo-500 ring-offset-2'
+  const custom = isHex(value)
+  const checker = 'repeating-conic-gradient(#d4d4d8 0 25%, #fff 0 50%) 0 0/8px 8px'
   return (
-    <div className="flex flex-wrap gap-2.5">
+    <div className="flex flex-wrap items-center gap-2.5">
       <button title="Default" onClick={() => onChange('')} className={'flex size-6 items-center justify-center rounded-full border border-slate-300 bg-white text-rose-500 ' + (!value ? ring : '')}>
         <Ic n="close" className="size-3.5" />
       </button>
       {Object.entries(STYLE[k].sw!).map(([name, hex]) => (
         <button key={name} title={name} onClick={() => onChange(name)} style={{ background: hex }} className={'size-6 rounded-full border border-black/15 ' + (value === name ? ring : '')} />
       ))}
+      {custom && <span title={`Custom ${value}`} style={{ background: `linear-gradient(${value}, ${value}), ${checker}` }} className={'size-6 rounded-full border border-black/15 ' + ring} />}
+      <CustomColorButton value={custom ? value : swatchHex(k, value) ?? '#4f46e5'} onChange={onChange} />
     </div>
   )
 }
@@ -158,12 +215,13 @@ function Spacing({ s, onChange }: { s: Record<string, string>; onChange: (k: str
   )
 }
 
-export default function Inspector({ node, onChange, onAct, onClose }: Props) {
+export default function Inspector({ node, onChange, onAct, onClose, onCollapse, onSaveComponent, onFeed, feedJump }: Props) {
   const d = BLOCKS[node.type]
   const p = (k: string, v: string) => onChange(node.id, { p: { [k]: v } })
   const s = (k: string, v: string) => onChange(node.id, { s: { [k]: v } })
   const has = (k: string) => d.style?.includes(k)
   const hidden = (node.p.hide ?? '').split(',').filter(Boolean)
+  const feedCfg = parseFeed(node)
 
   const field = (f: Field) => {
     const v = node.p[f.k] ?? ''
@@ -210,12 +268,23 @@ export default function Inspector({ node, onChange, onAct, onClose }: Props) {
   return (
     <div className="text-slate-800">
       <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-3">
+        {onCollapse && <button title="Hide the panel" aria-label="Hide the panel" onClick={onCollapse} className="-ml-2 rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><Ic n="down" className="size-4 -rotate-90" /></button>}
         <Ic n={d.icon} className="size-5 text-indigo-500" />
         <h3 className="mr-auto text-base font-semibold">{d.label}</h3>
+        {onSaveComponent && <button title="Save as component (admins)" aria-label="Save as component" onClick={onSaveComponent} className="rounded p-1.5 text-[#f26522] hover:bg-orange-50"><Ic n="bookmark" /></button>}
         <button title="Duplicate" onClick={() => onAct('dup')} className="rounded p-1.5 text-slate-500 hover:bg-slate-100"><Ic n="dup" /></button>
         <button title="Delete" onClick={() => onAct('del')} className="rounded p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600"><Ic n="del" /></button>
         <button title="Close" onClick={onClose} className="rounded p-1.5 text-slate-500 hover:bg-slate-100"><Ic n="close" /></button>
       </header>
+
+      {feedCfg && <FeedPanel cfg={feedCfg} onFeed={onFeed} onDetach={() => onChange(node.id, { p: { feed: '' } })} />}
+      {!feedCfg && feedJump && (
+        <div className="border-b border-slate-200 px-4 py-3">
+          <button onClick={feedJump} className="flex w-full items-center justify-between rounded-lg bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100">
+            This block is part of a feed. Open the feed settings <Ic n="up" className="size-4 rotate-90" />
+          </button>
+        </div>
+      )}
 
       {content.length > 0 && <Section title="Content"><>{content.map(field)}</></Section>}
 

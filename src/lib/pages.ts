@@ -2,7 +2,8 @@
 import type { Node } from './tree'
 
 export type User = { name: string; email: string }
-export type PageMeta = { id: string; name: string; updated: number }
+// A site is a page with parent === null (its home, index.html) plus the pages whose parent is that home. `extra` counts a site's other pages.
+export type PageMeta = { id: string; name: string; updated: number; parent: string | null; extra: number }
 export type PageFull = PageMeta & { root: Node }
 
 async function api<T>(url: string, method = 'GET', body?: unknown): Promise<T> {
@@ -14,9 +15,10 @@ async function api<T>(url: string, method = 'GET', body?: unknown): Promise<T> {
   return r.json()
 }
 
-export const createPage = (name: string, root?: Node) => api<PageFull>('/api/pages', 'POST', { name, root })
+export const createPage = (name: string, root?: Node, site?: string) => api<PageFull>('/api/pages', 'POST', { name, root, site })
 export const copyPage = (id: string) => api<PageFull>('/api/pages', 'POST', { copyOf: id })
 export const fetchPages = () => api<PageFull[]>('/api/pages')
+export const fetchSite = (id: string) => api<PageFull[]>(`/api/pages?site=${id}`) // every page of the site, home first
 export const renamePage = (id: string, name: string) => api<{ ok: true }>(`/api/pages/${id}`, 'PATCH', { name })
 export const saveRoot = (id: string, root: Node) => api<{ ok: true }>(`/api/pages/${id}`, 'PATCH', { root })
 export const deletePage = (id: string) => api<{ ok: true }>(`/api/pages/${id}`, 'DELETE')

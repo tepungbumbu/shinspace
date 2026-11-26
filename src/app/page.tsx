@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import Editor from '@/components/Editor'
 import { getSessionUser } from '@/lib/auth'
-import { getPage } from '@/lib/pages-db'
+import { getPage, getSite } from '@/lib/pages-db'
 
 // The editor opens one of the signed-in user's pages: /?page=<id>. Without an id, go pick one.
 export default async function Home({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
@@ -11,5 +11,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ p
   if (!id) redirect('/dashboard')
   const page = getPage(user.id, id)
   if (!page) notFound()
-  return <Editor page={page} />
+  const site = getSite(user.id, id).map((p) => ({ id: p.id, name: p.name })) // the pages of this site, home first
+  return <Editor page={page} site={site} isAdmin={user.role === 'admin'} />
 }

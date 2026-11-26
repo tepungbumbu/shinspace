@@ -50,7 +50,7 @@ export default function ExportModal({ pages, onClose }: { pages: SitePage[]; onC
           {pages.length > 1 && (
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <input type="checkbox" checked={others} onChange={(e) => setOthers(e.target.checked)} className="size-4 accent-indigo-500" />
-              Include my other {pages.length - 1} {pages.length === 2 ? 'page' : 'pages'} in <code className="rounded bg-slate-100 px-1 text-xs">pages/</code>
+              Include the site’s other {pages.length - 1} {pages.length === 2 ? 'page' : 'pages'} in <code className="rounded bg-slate-100 px-1 text-xs">pages/</code>
             </label>
           )}
 
@@ -60,7 +60,7 @@ export default function ExportModal({ pages, onClose }: { pages: SitePage[]; onC
               {site ? tree(root, [...site.files.map((f) => f.path), 'README.md']) : ready ? 'Something went wrong while building the site.' : 'Building…'}
             </pre>
             <p className="mt-2 text-xs text-slate-400">
-              <code>index.html</code> is the page you are editing. Folders with nothing in them (fonts, icons, scripts) are left out.
+              <code>index.html</code> is the site’s home page. Folders with nothing in them (fonts, icons, scripts) are left out.
             </p>
           </div>
         </div>

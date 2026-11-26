@@ -9,5 +9,5 @@ export const metadata: Metadata = { title: 'Dashboard — ShinSpace' }
 export default async function DashboardPage() {
   const user = await getSessionUser()
   if (!user) redirect('/login')
-  return <Dashboard user={{ name: user.name, email: user.email }} initial={listPages(user.id)} />
+  return <Dashboard user={{ name: user.name, email: user.email }} initial={listPages(user.id)} isAdmin={user.role === 'admin'} />
 }

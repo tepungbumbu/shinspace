@@ -83,6 +83,13 @@ async function compileCss(html: string): Promise<Css> {
   }
 }
 
+// Tailwind CSS for just these class strings, as one stylesheet. Only the class names are compiled (never the
+// markup), so untrusted HTML cannot run anything here. Used by the admin's component preview.
+export async function compileClasses(classes: string[]): Promise<string> {
+  const css = await compileCss(classes.map((c) => `<div class="${c.replace(/"/g, '&quot;')}"></div>`).join(''))
+  return [...css.head, ...css.variables, ...css.reset, ...css.layout, ...css.components, ...css.responsive].join('\n')
+}
+
 const doc = (title: string, body: string, prefix: string, css: boolean) => `<!doctype html>
 <html lang="en">
 <head>

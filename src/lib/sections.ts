@@ -1,4 +1,4 @@
-import { N, type Node } from './tree'
+import { N, clone, type Node } from './tree'
 import { B, BOX, COL, CON, DIV, FW, G, H, I, IMG, AVATAR, META, P, SP, head, intro, mkRow, tw } from './kit'
 import { FEED_LAYOUTS, FEED_OPTIONS } from './feeds'
 
@@ -127,7 +127,12 @@ const cta = (): Node =>
   FW([CON([H('Ready to start?', { size: '4xl', color: 'white', align: 'center' }), P('Join thousands of happy customers today.', { color: 'soft', align: 'center' }), B('Create your page', 'light')], { py: 'lg', align: 'center' })], { bg: 'indigo' })
 
 // ---------- the list shown in the Sections tab ----------
-export type Section = { title: string; desc: string; group: string; sub?: string; make: () => Node }
+export type Section = { title: string; desc: string; group: string; sub?: string; make: () => Node; id?: string; custom?: boolean }
+
+// A component an admin published; it joins the built-in list in the Sections tab.
+export type CustomComp = { id: string; name: string; description: string; category: string; sub?: string; builtin?: boolean; node: Node }
+export const customSection = (c: CustomComp): Section => ({ id: c.id, custom: !c.builtin, group: c.category, sub: c.sub || undefined, title: c.name, desc: c.description || 'Added by your admins', make: () => clone(c.node) })
+export const sectionKey = (s: Section) => (s.id ? `c:${s.id}` : s.title)
 export const GROUPS = ['Hero', 'Content', 'Feeds', 'Feed options', 'Social feeds', 'Trust', 'Conversion'] as const
 
 // what each category holds, shown on the category list

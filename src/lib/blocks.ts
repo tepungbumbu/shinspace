@@ -217,7 +217,7 @@ export const BLOCKS: Record<string, Def> = {
       `<div${a} class="${cx('divide-y divide-slate-200 rounded-lg border border-slate-200', mb(n))}">${lines(n.p.items)
         .map((l) => {
           const [q, ...r] = l.split('::')
-          return `<details class="p-4"><summary class="cursor-pointer font-semibold">${esc(q.trim())}</summary><p class="mt-2 text-slate-600">${esc(r.join('::').trim())}</p></details>`
+          return `<details><summary class="flex min-h-11 cursor-pointer items-center px-4 py-3 font-semibold">${esc(q.trim())}</summary><p class="px-4 pb-4 text-slate-600">${esc(r.join('::').trim())}</p></details>`
         })
         .join('')}</div>`,
   },

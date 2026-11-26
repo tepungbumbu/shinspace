@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { GROUPS, PALETTES, SHADES, SPECIAL, VARIANTS, type Prop } from '@/lib/tailwind'
 import type { Node } from '@/lib/tree'
+import { CustomColorButton } from './ColorPicker'
 import { Ic } from './Ic'
 
 const field = 'w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs outline-none focus:border-indigo-400 focus:bg-white'
@@ -19,21 +20,29 @@ function Control({ prop, value, onChange }: { prop: Prop; value: string; onChang
       </select>
     )
   }
-  // color: "<prefix>-<palette>-<shade>" or "<prefix>-black|white|..."
+  return <ColorControl prop={prop} value={value} onChange={onChange} />
+}
+
+// a palette colour ("<prefix>-<palette>-<shade>", "<prefix>-black"...) or a custom one ("<prefix>-[#rrggbb]")
+function ColorControl({ prop, value, onChange }: { prop: Prop; value: string; onChange: (v: string) => void }) {
   const rest = value ? value.slice(prop.pre!.length + 1) : ''
+  const custom = /^\[(#[0-9a-f]{6}(?:[0-9a-f]{2})?)\]$/i.exec(rest)?.[1]
   const m = rest.match(/^([a-z]+)-(\d+)$/)
-  const [pal, shade] = m ? [m[1], m[2]] : [rest, '']
+  const [pal, shade] = custom ? ['', ''] : m ? [m[1], m[2]] : [rest, '']
   const set = (p: string, s: string) => onChange(!p ? '' : PALETTES.includes(p) ? `${prop.pre}-${p}-${s || '500'}` : `${prop.pre}-${p}`)
+  const checker = 'repeating-conic-gradient(#e2e8f0 0 25%, #fff 0 50%) 0 0/8px 8px'
+  const dot = custom ? `linear-gradient(${custom}, ${custom}), ${checker}` : value ? `var(--color-${pal}${shade ? '-' + shade : ''}, ${pal})` : checker
   return (
     <div className="flex items-center gap-2">
-      <span className="size-5 shrink-0 rounded-full border border-black/15" style={{ background: value ? `var(--color-${pal}${shade ? '-' + shade : ''}, ${pal})` : 'repeating-conic-gradient(#e2e8f0 0 25%, #fff 0 50%) 0 0/8px 8px' }} />
+      <span className="size-5 shrink-0 rounded-full border border-black/15" style={{ background: dot }} />
       <select className={field} value={pal} onChange={(e) => set(e.target.value, shade)}>
-        <option value="">–</option>
+        <option value="">{custom ? 'Custom' : '–'}</option>
         {[...SPECIAL, ...PALETTES].map((p) => <option key={p} value={p}>{p}</option>)}
       </select>
       <select className={field + ' w-20'} value={shade} disabled={!PALETTES.includes(pal)} onChange={(e) => set(pal, e.target.value)}>
         {SHADES.map((s) => <option key={s} value={s}>{s}</option>)}
       </select>
+      <CustomColorButton value={custom ?? '#4f46e5'} onChange={(hex) => onChange(`${prop.pre}-[${hex}]`)} size="size-5" active={!!custom} offset="ring-offset-1" />
     </div>
   )
 }
